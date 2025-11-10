@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>BUNNY & BUDDY — Dashboard</title>
+<script>
+      (function() {
+        // Pega os parâmetros da URL, ex: ?theme=dark
+        const params = new URLSearchParams(window.location.search);
+        
+        if (params.get('theme') === 'dark') {
+          const root = document.documentElement; // O <html>
+          
+          // Sobrescreve as variáveis de cor do CSS para o modo escuro
+          // (Cores baseadas no tema escuro do seu app Ascensus)
+          root.style.setProperty('--bg', '#0e0e0e');    // Fundo do app escuro
+          root.style.setProperty('--color', '#fff');
+          root.style.setProperty('--card', '#121212'); // Fundo do card escuro
+          root.style.setProperty('--teal', '#38bdf8');   // Azul claro (sky-500)
+          root.style.setProperty('--teal-d', '#0e7490'); // Azul escuro (cyan-700)
+          root.style.setProperty('--muted', '#a1a1aa'); // Cinza (zinc-400)
+        }
+      })();
+    </script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+<style>
+  :root{
+    --bg:#eef5f8; --card:#fff; --teal:#12a2e9; --teal-d:#6366f1; --muted:#7a8b95;
+    --ok:#9ae27a; --warn:#ffd25c; --bad:#ff7a7a;
+    --border:2px; --rad:14px;
+    --topH:190px;      /* eixo */
+    --botH:150px;      /* 4 cards inferiores */
+    --alertsH:190px;   /* tabela */
+
+    /* Appbar (cabeçalho) */
+    --appbarH:64px;
+    --appbarBg: linear-gradient(to right, #6366f1, #12a2e9);
+    --appbarFg:#f6ffff;
+    --color: #103;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;overflow:hidden}
+  body{margin:0;background:var(--bg);font:12.5px/1.35 "Segoe UI",system-ui,Roboto,Arial,sans-serif;color:#123}
+
+  /* ===== APPBAR ===== */
+  .appbar{
+    height:var(--appbarH);
+    display:flex; align-items:center;
+    gap:12px;
+    padding:0 18px;
+    background:var(--appbarBg);
+    color:var(--appbarFg);
+    box-shadow:0 6px 18px rgba(0,0,0,.15);
+  }
+  .appbar .brand{
+    display:flex; align-items:center; gap:12px; min-width:0;
+  }
+  .brand img{
+    height:200px; width:auto; display:block; object-fit:contain;
+    filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));
+  }
+  .brand h1{
+    margin:0; font-size:20px; letter-spacing:4px; font-weight:900; white-space:nowrap;
+  }
+  .appbar .spacer{flex:1}
+  .ws-pill{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:6px 10px; border-radius:999px; font-weight:800; font-size:12px;
+    background:rgba(255,255,255,.18); color:#fff; border:1px solid rgba(255,255,255,.35);
+    backdrop-filter:blur(2px);
+  }
+  .ws-dot{
+    width:10px; height:10px; border-radius:50%;
+    background:#ffd25c; box-shadow:0 0 0 2px rgba(0,0,0,.15) inset;
+  }
+  .ws-dot.ok{ background:#9ae27a }
+  .ws-dot.err{ background:#ff7a7a }
+
+  /* conteúdo abaixo do cabeçalho */
+  .frame{
+    height:calc(100vh - var(--appbarH));
+    padding:60px 16px 12px;
+    position:relative; /* <— permite o título absoluto ficar entre appbar e cards */
+  }
+
+  /* Título central entre o appbar e o primeiro card */
+  .page-title{
+    position:absolute; left:0; right:0; top:12px;
+    text-align:center;
+    font-weight:900;
+    letter-spacing:.6px;
+    font-size:clamp(18px,2.2vw,28px);
+    color:var(--teal-d);
+    pointer-events:none; /* não bloqueia cliques nos elementos abaixo */
+  }
+
+  .wrap{height:100%;max-width:1200px;margin:0 auto;display:grid;grid-template-rows:var(--topH) auto var(--alertsH);row-gap:12px}
+
+  .grid-top{display:grid;grid-template-columns:1fr}
+  .grid-bot{display:grid;grid-template-columns:repeat(4,1fr);gap:12px; align-items: center;}
+  .grid-alerts{display:grid;grid-template-columns:1fr}
+
+  .card{background:var(--card);border:var(--border) solid var(--teal);border-radius:var(--rad);padding:10px 12px;overflow:hidden}
+  .card h3{margin:0 0 6px;color:var(--teal);font-weight:800;letter-spacing:.5px;font-size:11.5px;display:flex;align-items:center;gap:8px}
+  .chip{margin-left:auto;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:800;color:var(--color);background:#e8f3f6;border:1px solid var(--teal)}
+
+  /* topo */
+  .grid-top .card{height:var(--topH);display:flex;flex-direction:column}
+  .combo{display:grid;grid-template-columns:1.25fr .55fr;gap:10px;align-items:stretch}
+  #ch-eixo{height:128px !important}
+
+  .al-item{display:grid;grid-template-columns:95px 1fr 32px;align-items:center;gap:6px;margin:2px 0}
+  .al-item small{color:var(--muted);font-weight:600;font-size:11px}
+  .bar{height:8px;border:1px solid var(--teal);border-radius:8px;background:#f2f7f9;overflow:hidden}
+  .bar>span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--warn),var(--ok))}
+  .pct{color:var(--teal-d);font-weight:800;font-size:11px;text-align:right}
+  .mini-kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:4px;color:var(--muted);margin-top:4px;font-size:11px}
+
+  /* linha de baixo */
+  .grid-bot .card{height:var(--botH);display:flex;flex-direction:column}
+  .grid-bot canvas{flex:1 1 auto;height:calc(var(--botH) - 36px) !important;max-height:calc(var(--botH) - 36px)}
+
+  /* gauge */
+  .gauge-wrap{flex:1 1 auto;position:relative}
+  .gauge{width:100%;height:100%;background:transparent}
+  .g-scale{position:absolute;inset:auto 0 2px;display:flex;justify-content:space-between;padding:0 6px;color:var(--muted);font-weight:600;font-size:11px}
+  .g-val{position:absolute;left:0;right:0;bottom:2px;text-align:center;color:#111;font-weight:800;font-size:12px}
+
+  /* alertas */
+  .grid-alerts .card{height:var(--alertsH);display:flex;flex-direction:column}
+  .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+  .btn{appearance:none;border:1px solid var(--teal);background:#e8f3f6;color:#124;border-radius:10px;padding:6px 10px;font-weight:800;font-size:12px;cursor:pointer}
+  .btn.bad{background:#ffecec;border-color:#ff9b9b;color:#7a0000}
+  .btn.warn{background:#fff5da;border-color:#ffd25c;color:#5a4700}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-weight:800;font-size:11px;border:1px solid transparent}
+  .b-red{background:#ffecec;border-color:#ff9b9b;color:#7a0000}
+  .b-yellow{background:#fff5da;border-color:#ffd25c;color:#5a4700}
+  .b-green{background:#e7fbdf;border-color:#b9f2a2;color:#184a00}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{padding:6px 8px;border-bottom:1px solid #e8eef1;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+  th{color:var(--muted);text-align:left;font-weight:800}
+  tbody tr:hover{background:#f9fcfd}
+  .scroll{flex:1 1 auto;overflow:auto;border:1px solid #e8eef1;border-radius:10px}
+  .plot-wrap{position:relative}
+  .floor-badge{position:absolute;right:10px;top:8px;background:#e7fbdf;border:1px solid #b9f2a2;color:#184a00;padding:2px 8px;border-radius:999px;font-weight:800;font-size:11px}
+
+  /* modal de alerta */
+  .modal-root{position:fixed;inset:0;display:none;z-index:9999;align-items:center;justify-content:center;pointer-events:none}
+  .modal-root.open{display:flex}
+  .modal-backdrop{position:absolute;inset:0;background:rgba(8,20,26,.45);backdrop-filter:blur(2px);pointer-events:auto}
+  .modal{position:relative;pointer-events:auto;width:clamp(360px,56vw,640px);background:#fff;border-radius:16px;padding:18px 20px;border:3px solid;box-shadow:0 24px 64px rgba(0,0,0,.25);display:grid;grid-template-columns:16px 1fr auto;gap:14px;align-items:start;transform:translateY(10px) scale(.98);opacity:0;transition:.2s ease}
+  .modal-root.open .modal{transform:translateY(0) scale(1);opacity:1}
+  .modal .dot{width:14px;height:14px;border-radius:999px;margin-top:2px}
+  .modal .title{font-size:18px;font-weight:900;margin-top:-2px;letter-spacing:.2px}
+  .modal .meta{margin-top:6px;color:#4a5b64;font-size:13.5px}
+  .modal .close{appearance:none;border:0;background:transparent;font-size:22px;line-height:1;color:#5b6b73;cursor:pointer;padding:0 4px;margin-top:-6px}
+  .modal.warn{border-color:#ffd25c;background:#fffaf0}.modal.warn .dot{background:#ffcc3f}
+  .modal.danger{border-color:#ff9b9b;background:#fff4f4}.modal.danger .dot{background:#ff6b6b}
+  .modal.info{border-color:#86d1df;background:#f1fbff}.modal.info .dot{background:#6366f1}
+</style>
+</head>
+<!-- <body> -->
+
+<!-- ===== CABEÇALHO ===== -->
+<nav class="appbar">
+  <div class="brand">
+    <!-- troque o src para o caminho da sua logo -->
+    <img src="/brand/bunnybuddy-logo.png.png" alt="Logo" height="32" /><!--bunny2-->
+    <h1><!--BUNNY & BUDDY--></h1>
+  </div>
+  <div class="spacer"></div>
+  <span class="ws-pill"><span id="wsDot" class="ws-dot"></span> conexão</span>
+</nav>
+
+<!-- Modal -->
+<div id="modalRoot" class="modal-root">
+  <div class="modal-backdrop"></div>
+</div>
+
+<div class="frame">
+  <!-- TÍTULO CENTRAL ENTRE APPBAR E PRIMEIRO CARD -->
+  <div class="page-title">Bunny &amp; Buddy</div>
+
+  <div class="wrap">
+    <!-- TOPO -->
+    <div class="grid-top">
+      <section class="card" id="topCard">
+        <h3>EIXO DO ALINHAMENTO • ALINHAMENTO <span class="chip" id="chipStatus">OK</span></h3>
+        <div class="combo">
+          <div class="plot-wrap">
+            <canvas id="ch-eixo"></canvas>
+            <div class="floor-badge" id="floorBadge">T • 0.00 m</div>
+          </div>
+          <div>
+            <div class="al-item"><small>DISTÂNCIA 1</small><div class="bar"><span id="b1"></span></div><div class="pct" id="p1">0%</div></div>
+            <div class="al-item"><small>DISTÂNCIA 2</small><div class="bar"><span id="b2"></span></div><div class="pct" id="p2">0%</div></div>
+            <div class="al-item"><small>DISTÂNCIA 3</small><div class="bar"><span id="b3"></span></div><div class="pct" id="p3">0%</div></div>
+            <div class="al-item"><small>DISTÂNCIA 4</small><div class="bar"><span id="b4"></span></div><div class="pct" id="p4">0%</div></div>
+            <div class="mini-kpis">
+              <div>Temperatura: <b id="kv-temp">–</b> °C</div>
+              <div>Velocidade: <b id="kv-vel">–</b> m/s</div>
+              <div>Corrente A: <b id="kv-ia">–</b> A</div>
+              <div>Estado: <b id="kv-st">–</b></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- BAIXO -->
+    <div class="grid-bot">
+      <section class="card"><h3>RUÍDO</h3><canvas id="ch-ruido"></canvas></section>
+      <section class="card"><h3>TEMPERATURA</h3><canvas id="ch-temp"></canvas></section>
+      <section class="card">
+        <h3>TENSÃO DO MOTOR</h3>
+        <div class="gauge-wrap">
+          <canvas id="gauge" class="gauge"></canvas>
+          <div class="g-scale"><span>0V</span><span>20V</span></div>
+          <div class="g-val" id="gVal">—</div>
+        </div>
+      </section>
+      <section class="card"><h3>CORRENTE</h3><canvas id="ch-corr"></canvas></section>
+    </div>
+
+    <!-- ALERTAS -->
+    <div class="grid-alerts">
+      <section class="card" id="alertsCard">
+        <h3>HISTÓRICO DE ALERTAS <span class="chip" id="chipCount">0 eventos</span></h3>
+        <div class="toolbar">
+          <button class="btn bad" id="btnReset">Resetar alertas</button>
+          <button class="btn warn" id="btnExport">Exportar CSV</button>
+          <small style="margin-left:auto;color:var(--muted)">Limites:
+            <b id="lblLimits"></b>
+          </small>
+        </div>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Data/Hora</th><th>Tipo</th><th>Valor</th><th>Limite</th><th>Origem</th></tr></thead>
+            <tbody id="tbodyAlerts"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ===== CONFIG =====
+  const LIMITS = { IA_MAX: 6.5, TEMP_MAX: 70.0, VIB_MS2_MAX: 12.0, HYST: 0.92 };
+  const alertsKey='bb_alerts_v1';
+  const H_MAX_M = 8;
+  const FLOOR_STEP_M = 2;
+  const ALIGN_MM_PER_UNIT = 1;
+  const VEL_STOP_EPS = 0.05; // ~parado
+
+  // ===== WS =====
+  const WS_PATH = '/ws/Bunny&Buddy';
+  const wsProto = location.protocol==='https:'?'wss':'ws';
+  const wsUrl = `${wsProto}://${location.host}${WS_PATH}`;
+  let ws;
+  (function openWS(){
+    ws = new WebSocket(wsUrl);
+    const dot = document.getElementById('wsDot');
+    ws.onopen = ()=>{ dot.classList.remove('err'); dot.classList.add('ok'); };
+    ws.onclose = ()=>{ dot.classList.remove('ok'); dot.classList.add('err'); setTimeout(openWS,1000); };
+    ws.onerror = ()=>{ dot.classList.remove('ok'); dot.classList.add('err'); };
+    ws.onmessage = e => { try{ handle(JSON.parse(e.data)); }catch{} };
+  })();
+
+  // ===== UTILS =====
+  const MAX=160, clamp=(n,a,b)=>Math.min(b,Math.max(a,n));
+  const pctFromDist=d=>{ const delta=Math.abs((d??200)-200); return clamp(100-delta,0,100); };
+  function push(ds,x,y){ ds.push({x,y}); if(ds.length>MAX) ds.shift(); }
+
+  // ===== MODAL =====
+  function showAlertPopup(type, value, limit, origin, ts){
+    const root = document.getElementById('modalRoot'); if(!root) return;
+    const T = String(type).toUpperCase();
+    const variant = (T==='CORRENTE') ? 'danger' : (T==='TEMPERATURA') ? 'warn' : (T.startsWith('VIB')) ? 'danger' : 'info';
+    const title = (T==='CORRENTE') ? 'Pico de Corrente' : (T==='TEMPERATURA') ? 'Alta Temperatura' : (T.startsWith('VIB') ? 'Vibração Elevada' : `Alerta: ${T}`);
+    const d = ts ? new Date(ts) : new Date();
+    const when = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+    const valueStr = (T==='CORRENTE') ? `${(+value).toFixed(2)} A` : (T==='TEMPERATURA') ? `${(+value).toFixed(2)} °C` : `${(+value).toFixed(2)}`;
+
+    root.querySelector('.modal')?.remove();
+    const modal = document.createElement('div');
+    modal.className = `modal ${variant}`;
+    modal.innerHTML = `
+      <div class="dot"></div>
+      <div>
+        <div class="title">${title}</div>
+        <div class="meta">${valueStr} • Limite ${limit} • ${origin || 'local'} • ${when}</div>
+      </div>
+      <button class="close" aria-label="Fechar">&times;</button>`;
+    root.appendChild(modal);
+
+    const close = ()=>{ root.classList.remove('open'); setTimeout(()=>modal.remove(), 200);
+      root.querySelector('.modal-backdrop')?.removeEventListener('click', close);
+      document.removeEventListener('keydown', onKey); };
+    const onKey = (ev)=>{ if(ev.key==='Escape') close(); };
+
+    root.querySelector('.modal-backdrop')?.addEventListener('click', close);
+    modal.querySelector('.close')?.addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+
+    root.classList.add('open');
+    setTimeout(close, variant==='danger' ? 10000 : 7000);
+  }
+
+  // ===== PLUGIN DE ANDARES NO EIXO =====
+  const floorBandsPlugin = {
+    id:'floorBands',
+    beforeDraw(chart, _args, opts){
+      const {ctx, chartArea, scales} = chart; const y=scales.y;
+      const step = opts.step ?? FLOOR_STEP_M; const max=y.options.max ?? H_MAX_M;
+      ctx.save();
+      for(let m=0, k=0; m<=max; m+=step, k++){
+        const y1=y.getPixelForValue(m), y2=y.getPixelForValue(Math.min(m+step,max));
+        ctx.fillStyle = k%2 ? 'rgba(42,140,162,0.06)' : 'rgba(42,140,162,0.03)';
+        ctx.fillRect(chartArea.left, y2, chartArea.right-chartArea.left, y1-y2);
+      }
+      ctx.restore();
+    },
+    afterDraw(chart,_args,opts){
+      const {ctx, chartArea, scales} = chart; const y=scales.y;
+      const step = opts.step ?? FLOOR_STEP_M; const max=y.options.max ?? H_MAX_M;
+      ctx.save(); ctx.fillStyle='#7a8b95'; ctx.font='11px Segoe UI,system-ui,sans-serif'; ctx.textBaseline='middle';
+      for(let m=0, idx=0; m<=max; m+=step, idx++){
+        const py=y.getPixelForValue(m);
+        const label = m===0?'T':String(idx);
+        ctx.fillText(label, chartArea.left+4, py);
+      }
+      ctx.restore();
+    }
+  };
+
+  // ===== CHARTS =====
+  const ejeCtx = document.getElementById('ch-eixo').getContext('2d');
+  function makeAltGradient(){
+    const g = ejeCtx.createLinearGradient(0, 0, 0, ejeCtx.canvas.height);
+    g.addColorStop(0,'rgba(42,140,162,0.25)');
+    g.addColorStop(1,'rgba(42,140,162,0.00)');
+    return g;
+  }
+  const eixo = new Chart(ejeCtx,{
+    type:'line',
+    data:{ datasets:[
+      { label:'Altura (m)', data:[], fill:true, backgroundColor:makeAltGradient(),
+        borderColor:'#2a8ca2', pointRadius:0, borderWidth:2, tension:0.35, yAxisID:'y',
+        segment:{ borderColor:ctx=>((ctx.p1.parsed.y??0)-(ctx.p0.parsed.y??0))>=0?'#2a8ca2':'#1e6c7d' }
+      },
+      { label:'Desalinhamento (mm)', data:[], borderColor:'#b9c4ca', borderDash:[6,6],
+        pointRadius:0, borderWidth:1.4, tension:0.25, yAxisID:'y1'
+      },
+      { type:'scatter', label:'Parada', data:[], showLine:false, yAxisID:'y',
+        pointRadius:4, pointHoverRadius:5, pointBackgroundColor:'#2a8ca2', pointBorderColor:'#fff', pointBorderWidth:1.5
+      }
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:false, parsing:false,
+      layout:{padding:{top:4,left:2,right:2,bottom:0}},
+      scales:{
+        x:{type:'time',time:{unit:'second'},ticks:{maxTicksLimit:6},grid:{color:'#f3f7f9'}},
+        y:{type:'linear',position:'left',min:0,max:H_MAX_M,grid:{color:'#eaf2f5'},title:{display:true,text:'Altura (m)'}},
+        y1:{type:'linear',position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Desalinhamento (mm)'}}
+      },
+      plugins:{
+        legend:{display:true,position:'top',labels:{usePointStyle:true,boxWidth:8,boxHeight:8,padding:8,font:{size:10}}},
+        tooltip:{mode:'nearest',intersect:false,callbacks:{
+          label(ctx){
+            if(ctx.datasetIndex===2) return `Parada • ${ctx.parsed.y.toFixed(2)} m`;
+            const v=(ctx.parsed.y??0).toFixed(2);
+            return (ctx.datasetIndex===0?`Altura: ${v} m`:`Desal.: ${v} mm`);
+          }
+        }}
+      }
+    },
+    plugins:[ floorBandsPlugin ]
+  });
+  new ResizeObserver(()=>{ eixo.data.datasets[0].backgroundColor = makeAltGradient(); eixo.update('none'); }).observe(ejeCtx.canvas);
+
+  const ruido=new Chart(document.getElementById('ch-ruido').getContext('2d'),{
+    type:'line', data:{datasets:[{label:'vib_s1_ms2',data:[],tension:.25,pointRadius:0,borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
+      scales:{x:{type:'time',time:{unit:'second'}},y:{beginAtZero:true}},plugins:{legend:{display:false}}}
+  });
+  const temp=new Chart(document.getElementById('ch-temp').getContext('2d'),{
+    type:'bar', data:{labels:[],datasets:[{label:'temp_c',data:[]}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      scales:{y:{beginAtZero:false}},plugins:{legend:{display:false}}}
+  });
+  const corr=new Chart(document.getElementById('ch-corr').getContext('2d'),{
+    type:'line', data:{datasets:[{label:'ia',data:[],tension:.25,pointRadius:0,borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
+      scales:{x:{type:'time',time:{unit:'second'}},y:{beginAtZero:true}},plugins:{legend:{display:false}}}
+  });
+
+  // ===== GAUGE 0–20 V (fix fundo/preto + responsivo) =====
+  const g   = document.getElementById('gauge');
+  // ⚠️ removido { alpha:false } que causava fundo preto
+  const gx  = g.getContext('2d');
+  const gVal= document.getElementById('gVal');
+
+  let gaugeValue = 0;
+  function fmt(v){
+    try { return v.toLocaleString('pt-BR',{minimumFractionDigits:1, maximumFractionDigits:1}); }
+    catch { return v.toFixed(1); }
+  }
+
+  function drawGauge(val){
+    const min=0, max=20;
+
+    const dpr  = Math.max(1, window.devicePixelRatio || 1);
+    const cssW = g.clientWidth  || 1;
+    const cssH = g.clientHeight || 1;
+
+    // preparar resolução retina
+    g.width  = Math.round(cssW * dpr);
+    g.height = Math.round(cssH * dpr);
+
+    // reset e transformar p/ coordenadas em CSS px
+    gx.setTransform(1,0,0,1,0,0);
+    gx.clearRect(0,0,g.width,g.height);
+    gx.setTransform(dpr,0,0,dpr,0,0);
+
+    // pinta o fundo com a cor do card (evita qualquer preto)
+    const cardBg = getComputedStyle(document.documentElement).getPropertyValue('--card').trim() || '#fff';
+    gx.fillStyle = cardBg;
+    gx.fillRect(0,0,cssW,cssH);
+
+    const cx = cssW/2;
+    const cy = cssH*0.86;
+    const r  = Math.min(cssW*0.40, cssH*0.78);
+
+    // leve margem nas pontas (sem cortar)
+    const start = Math.PI + 0.035;
+    const end   = -0.035;
+
+    const trackLW = r*0.12;
+    const bandLW  = trackLW*0.35;
+    const rBand   = r + (trackLW/2 - bandLW/2) - 1;
+
+    // trilho
+    gx.beginPath();
+    gx.strokeStyle = '#e6eef2';
+    gx.lineWidth   = trackLW;
+    gx.lineCap     = 'round';
+    gx.arc(cx,cy,r,start,end,false);
+    gx.stroke();
+
+    const at=t=> start + (end-start)*t;
+    const css = getComputedStyle(document.documentElement);
+    const C_OK   = css.getPropertyValue('--ok').trim()   || '#9ae27a';
+    const C_WARN = css.getPropertyValue('--warn').trim() || '#ffd25c';
+    const C_BAD  = css.getPropertyValue('--bad').trim()  || '#ff7a7a';
+    const t12=12/max, t15=15/max;
+
+    function band(t0,t1,col){
+      gx.beginPath();
+      gx.strokeStyle = col;
+      gx.lineWidth   = bandLW;
+      gx.lineCap     = 'round';   // ponta suave, sem “degrau”
+      gx.arc(cx,cy,rBand,at(t0),at(t1),false);
+      gx.stroke();
+    }
+    band(0.001,     t12-0.001, C_OK);
+    band(t12+0.001, t15-0.001, C_WARN);
+    band(t15+0.001, 0.999,     C_BAD);
+
+    // ponteiro (corrigido p/ semicírculo de cima)
+    const v = Math.min(max, Math.max(min, Number(val) || 0));
+
+    // t = 0..1
+    const t = (v - min) / (max - min);
+
+    // ângulo no intervalo [-π+EPS, -EPS]  (sempre acima do centro)
+    const EPSA = 0.035;
+    const ang  = (-Math.PI + EPSA) + (Math.PI - 2*EPSA) * t;
+
+    const px = cx + Math.cos(ang) * r * 0.86;
+    const py = cy + Math.sin(ang) * r * 0.86;
+
+    // desenha a haste primeiro, depois o miolo (fica por cima)
+    gx.beginPath();
+    gx.strokeStyle = '#111';
+    gx.lineWidth   = r * 0.04;
+    gx.lineCap     = 'round';
+    gx.moveTo(cx, cy);
+    gx.lineTo(px, py);
+    gx.stroke();
+
+    gx.beginPath();
+    gx.fillStyle = '#111';
+    gx.arc(cx, cy, r * 0.06, 0, Math.PI * 2);
+    gx.fill();
+
+    gVal.textContent = `${fmt(v)} V`;
+    gVal.style.color = '#111';
+    gaugeValue = v;
+
+  }
+
+  // redesenha ao redimensionar
+  new ResizeObserver(()=> drawGauge(gaugeValue)).observe(g);
+
+  // inicial
+  drawGauge(0);
+
+
+
+  // ===== ALERTAS =====
+  const tbody=document.getElementById('tbodyAlerts');
+  const chipCount=document.getElementById('chipCount');
+  const chipStatus=document.getElementById('chipStatus');
+  const lblLimits=document.getElementById('lblLimits');
+  const floorBadge=document.getElementById('floorBadge');
+  lblLimits.textContent = `IA≤${LIMITS.IA_MAX}A · TEMP≤${LIMITS.TEMP_MAX}°C · VIB≤${LIMITS.VIB_MS2_MAX}m/s²`;
+  let alerts = loadAlerts();
+  let state = { ia:false, temp:false, vib:false };
+  renderAlerts();
+
+  function nowTs(){ return Date.now(); }
+  function toIsoLocal(ts){ const d=new Date(ts), p=n=>String(n).padStart(2,'0');
+    return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
+  function loadAlerts(){ try{ const raw=localStorage.getItem(alertsKey); return raw?JSON.parse(raw):[]; }catch(_){ return []; } }
+  function saveAlerts(){ try{ localStorage.setItem(alertsKey, JSON.stringify(alerts)); }catch(_){} }
+  function renderAlerts(){
+    tbody.innerHTML='';
+    alerts.slice().reverse().forEach(ev=>{
+      const tr=document.createElement('tr');
+      const badge = ev.type==='CORRENTE' ? 'b-red' : (ev.type==='TEMPERATURA' ? 'b-yellow' : 'b-yellow');
+      tr.innerHTML = `<td>${toIsoLocal(ev.ts)}</td><td><span class="badge ${badge}">${ev.type}</span></td><td>${(+ev.value).toFixed(2)}</td><td>${ev.limit}</td><td>${ev.origin||'local'}</td>`;
+      tbody.appendChild(tr);
+    });
+    const active=[]; if(state.ia)active.push('IA'); if(state.temp)active.push('TEMP'); if(state.vib)active.push('VIB');
+    chipCount.textContent = `${alerts.length} ${alerts.length===1?'evento':'eventos'}`;
+    chipStatus.textContent = active.length ? `ALERTA: ${active.join(' + ')}` : 'OK';
+  }
+  function addAlert(type, value, limit, origin='local', ts=nowTs()){
+    alerts.push({type, value, limit, origin, ts});
+    saveAlerts(); renderAlerts();
+    showAlertPopup(type, value, limit, origin, ts);
+    try { ws && ws.readyState===1 && ws.send(JSON.stringify({alert:{type,value,limit,origin,ts}})); } catch(_){}
+  }
+  function resetAlerts(){
+    alerts = []; saveAlerts(); renderAlerts();
+    state = { ia:false, temp:false, vib:false };
+  }
+  document.getElementById('btnReset').onclick = resetAlerts;
+  document.getElementById('btnExport').onclick = ()=>{
+    const header = 'timestamp_iso;tipo;valor;limite;origem\n';
+    const lines = alerts.map(a=>`${new Date(a.ts).toISOString()};${a.type};${a.value};${a.limit};${a.origin}`);
+    const blob = new Blob([header+lines.join('\n')],{type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download=`alertas_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  };
+
+  // ===== DETECÇÃO =====
+  function checkAnomalies(s, ts){
+    let changed=false;
+    if (typeof s.ia==='number'){
+      const v=s.ia;
+      if (!state.ia && v > LIMITS.IA_MAX){ state.ia=true; addAlert('CORRENTE', v, `>${LIMITS.IA_MAX}A`, 'sim-node-red', ts); changed=true; }
+      else if (state.ia && v < LIMITS.IA_MAX*LIMITS.HYST){ state.ia=false; changed=true; }
+    }
+    if (typeof s.temp_c==='number'){
+      const v=s.temp_c;
+      if (!state.temp && v > LIMITS.TEMP_MAX){ state.temp=true; addAlert('TEMPERATURA', v, `>${LIMITS.TEMP_MAX}°C`, 'sim-node-red', ts); changed=true; }
+      else if (state.temp && v < LIMITS.TEMP_MAX*LIMITS.HYST){ state.temp=false; changed=true; }
+    }
+    if (typeof s.vib_s1_ms2==='number'){
+      const v=s.vib_s1_ms2;
+      if (!state.vib && v > LIMITS.VIB_MS2_MAX){ state.vib=true; addAlert('VIBRAÇÃO', v, `>${LIMITS.VIB_MS2_MAX}m/s²`, 'sim-node-red', ts); changed=true; }
+      else if (state.vib && v < LIMITS.VIB_MS2_MAX*LIMITS.HYST){ state.vib=false; changed=true; }
+    }
+    if (changed) renderAlerts();
+  }
+
+  // ===== ESTIMADORES =====
+  let lastTsForAlt=null, alturaEst=0;
+  function estimateAltura(ts,s){
+    if (typeof s.altura==='number'){ alturaEst=clamp(s.altura,0,H_MAX_M); lastTsForAlt=ts; return alturaEst; }
+    const v = typeof s.velocidade==='number' ? s.velocidade : 0;
+    if (lastTsForAlt==null){ lastTsForAlt=ts; return alturaEst; }
+    const dt=(ts-lastTsForAlt)/1000; alturaEst=clamp(alturaEst+v*dt,0,H_MAX_M); lastTsForAlt=ts; return alturaEst;
+  }
+  function inferDesalinhamento(s){
+    if (typeof s.desalinhamento==='number') return s.desalinhamento;
+    const base=200;
+    const lAvg=((typeof s.dist_l1==='number'?s.dist_l1:base)+(typeof s.dist_l2==='number'?s.dist_l2:base))/2;
+    const oAvg=((typeof s.dist_o1==='number'?s.dist_o1:base)+(typeof s.dist_o2==='number'?s.dist_o2:base))/2;
+    const dx=lAvg-base, dy=oAvg-base; return Math.hypot(dx,dy)*ALIGN_MM_PER_UNIT;
+  }
+
+  // ===== HANDLER =====
+  let wasStopped=true;
+  function handle(msg){
+    const ts=typeof msg.t==='number'?msg.t:Date.now(); const o=msg.data||msg;
+
+    const alt=estimateAltura(ts,o); const des=inferDesalinhamento(o);
+    push(eixo.data.datasets[0].data,ts,alt);
+    push(eixo.data.datasets[1].data,ts,des);
+
+    const vAbs=Math.abs(typeof o.velocidade==='number'?o.velocidade:0);
+    const isStopped=vAbs<=VEL_STOP_EPS;
+    if(isStopped && !wasStopped){
+      eixo.data.datasets[2].data.push({x:ts,y:alt});
+      if(eixo.data.datasets[2].data.length>60)eixo.data.datasets[2].data.shift();
+    }
+    wasStopped=isStopped;
+
+    const now=Date.now(), win=60*1000;
+    eixo.options.scales.x.min = now - win;
+    eixo.options.scales.x.max = now;
+    eixo.update();
+
+    const andar = Math.round(alt / FLOOR_STEP_M);
+    floorBadge.textContent = `${andar===0?'T':andar+'º'} • ${alt.toFixed(2)} m`;
+
+    if(typeof o.vib_s1_ms2==='number'){ push(ruido.data.datasets[0].data,ts,o.vib_s1_ms2); ruido.update(); }
+    if(typeof o.temp_c==='number'){
+      temp.data.labels.push(''); temp.data.datasets[0].data.push(o.temp_c);
+      if(temp.data.labels.length>12){ temp.data.labels.shift(); temp.data.datasets[0].data.shift(); }
+      temp.update(); const el=document.getElementById('kv-temp'); if(el) el.textContent=o.temp_c.toFixed(1);
+    }
+    if(typeof o.ia==='number'){ push(corr.data.datasets[0].data,ts,o.ia); corr.update(); const el=document.getElementById('kv-ia'); if(el) el.textContent=o.ia.toFixed(2); }
+    if(typeof o.velocidade==='number'){ document.getElementById('kv-vel').textContent=o.velocidade.toFixed(2); }
+    if(typeof o.estado==='number'){
+      const estados=['STANDBY','ACELERANDO','CRUZEIRO','DESACELERANDO'];
+      document.getElementById('kv-st').textContent = (isStopped?'PARADO':(estados[o.estado]||o.estado));
+    }
+
+    [['b1','p1',pctFromDist(o.dist_l1)],['b2','p2',pctFromDist(o.dist_l2)],['b3','p3',pctFromDist(o.dist_o1)],['b4','p4',pctFromDist(o.dist_o2)]].forEach(([b,p,vv])=>{
+      const bar=document.getElementById(b); if(bar) bar.style.width=vv+'%'; const pct=document.getElementById(p); if(pct) pct.textContent=Math.round(vv)+'%';
+    });
+
+    const tensao = (typeof o.tensao==='number') ? o.tensao : clamp((o.ia||0)*2, 0, 20);
+    drawGauge(tensao);
+
+    checkAnomalies(o, ts);
+  }
+</script>
+</body>
+</html>

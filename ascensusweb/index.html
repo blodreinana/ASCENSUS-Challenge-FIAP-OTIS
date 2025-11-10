@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ascensus App</title>
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      (function() {
+        try {
+          var stored = localStorage.getItem('ascensus_tema');
+          var theme = stored ? JSON.parse(stored) : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          var meta = document.createElement('meta');
+          meta.name = 'theme-color';
+          meta.content = '#ffffff'; 
+          
+          document.head.appendChild(meta);
+        } catch(e) {}
+      })();
+    </script>
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/logo-ascensus-48.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/logo-ascensus-192.png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
