@@ -2,7 +2,7 @@
 
 > 🏆 **VENCEDOR DO CHALLENGE (TOP 2 - MEDALHA DE PRATA)** 🏆
 >
-> Este projeto foi um dos vencedores do **Challenge FIAP/OTIS**, alcançando o **Top 2** e recebendo a medalha de prata pela sua arquitetura full-stack, pipeline de engenharia de dados, funcionalidade e protótipos físicos funcionais.
+> Este projeto foi um dos vencedores do **Challenge FIAP/OTIS**, alcançando o **Top 2** e recebendo a medalha de prata pela sua arquitetura full-stack, pipeline de engenharia de dados, funcionalidade e protótipos físicos funcionais. acesse https://www.linkedin.com/feed/update/urn:li:activity:7393298822585552896 para ver mais!
 
 **Ascensus** é uma aplicação web full-stack de monitoramento de elevadores. A plataforma permite que técnicos gerenciem elevadores e utiliza um pipeline de engenharia de dados com Machine Learning para analisar o desempenho dos sensores e detectar anomalias.
 
